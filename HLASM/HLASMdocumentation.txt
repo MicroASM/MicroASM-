@@ -1,0 +1,282 @@
+HLASM (High-Level Assembly) - Complete Language Documentation
+=============================================================
+Target: MicroASM 16-bit byte-addressed system
+Purpose: A higher-level, human-readable assembly language that compiles to MicroASM
+
+-------------------------------------------------------------------------------
+SECTION 1: INTRODUCTION
+-------------------------------------------------------------------------------
+
+HLASM is a symbolic macro assembly language that compiles into MicroASM bytecode.
+It is designed for programming a 16-bit memory model, where every instruction,
+variable, and constant is managed manually. HLASM aims to reduce the mental
+overhead of working directly with MicroASM bytecode by introducing:
+
+- Symbolic variables and constants
+- Labels for branching
+- String handling
+- Simple control flow
+- Function call conventions (CALL/RET)
+- Arithmetic and logical abstraction
+- Auto memory allocation for variables and strings
+
+This document explains every component of HLASM and how it relates to MicroASM.
+
+-------------------------------------------------------------------------------
+SECTION 2: MEMORY MODEL
+-------------------------------------------------------------------------------
+
+Memory is 65536 bytes (2^16), and is byte-addressable. It is logically divided
+into sections for structured use:
+
+- Section 0 (addresses 0-255): Constants
+- Section 1 (256-383): Input buffer (128 bytes)
+- Section 1 (384-511): Output buffer (128 bytes)
+- Section 2 (512-639): Reserved for I/O expansion
+- Section 3+ (640-...): Program code, variables, strings, heap, stack, etc.
+
+The program counter is stored in a fixed system location, typically address
+65000-65001 (high and low byte). This allows the interpreter/emulator to track
+instruction execution without colliding with user memory.
+
+-------------------------------------------------------------------------------
+SECTION 3: HLASM SYNTAX
+-------------------------------------------------------------------------------
+
+HLASM is line-based. Every line is either:
+- A directive (.const, .var, .string)
+- A label (ending with :)
+- An instruction (LDA, ADD, etc.)
+
+Blank lines and comment lines (starting with ;) are ignored.
+
+DIRECTIVES:
+
+.const NAME VALUE
+    - Define a constant. VALUE must be a number from 0 to 255.
+    - The compiler maps this to a unique address in the constant section.
+
+.var NAME
+    - Define a variable. Automatically allocated in memory after the program code.
+    - Assigned a single byte (8 bits).
+
+.string NAME "TEXT"
+    - Stores ASCII characters of the string TEXT into memory.
+    - NAME refers to the starting address of the string.
+
+LABELS:
+
+Labels are used to mark code positions and are required for jumps or branches.
+
+Example:
+start:
+    LDA x, y
+    JMP start
+
+INSTRUCTIONS:
+
+HLASM instructions map directly to MicroASM opcodes. Each instruction uses
+resolved memory addresses and is translated to fixed-size MicroASM instructions.
+
+Instruction Set Summary:
+
+HLT
+    - Halt execution
+    - MicroASM: 0
+
+LDA source, dest
+    - dest = memory[source]
+    - Opcode: 1, followed by 2-byte source and 2-byte dest
+    - Total: 5 bytes
+
+ADD source, dest
+    - dest = dest + memory[source]
+    - Opcode: 2, same format as LDA
+
+SUB source, dest
+    - dest = dest - memory[source]
+    - Opcode: 3
+
+MUL source, dest
+    - dest = dest * memory[source]
+    - Opcode: 4
+
+DIV source, dest
+    - dest = dest // memory[source] (integer division)
+    - Opcode: 5
+
+JMP target
+    - Unconditional jump to memory address or label
+    - Opcode: 6 + 2-byte address
+
+JIE target, a, b
+    - Jump to target if memory[a] == memory[b]
+    - Opcode: 7 + 2-byte jump + 2-byte a + 2-byte b
+
+JIL target, a, b
+    - Jump if memory[a] < memory[b]
+    - Opcode: 8
+
+JIG target, a, b
+    - Jump if memory[a] > memory[b]
+    - Opcode: 9
+
+CALL label
+    - Pushes return address to stack, jumps to label
+    - Stack pointer is stored at address 60000
+    - Simulated using a sequence of LDA and ADD instructions
+    - Total: about 23 bytes
+
+RET
+    - Pops return address from stack and jumps back
+    - Total: about 13 bytes
+
+-------------------------------------------------------------------------------
+SECTION 4: STRINGS
+-------------------------------------------------------------------------------
+
+Strings are defined with .string and stored as byte arrays in memory. They are
+null-terminated only if you add '\0' yourself.
+
+To print a string, you must manually:
+- Loop through memory[msg + i]
+- Stop at length or sentinel
+- Write each char to the output buffer (memory[384+])
+
+Example:
+.string msg "HELLO"
+.const OUT 384
+.var i
+.var ch
+
+LDA 0, i
+loop:
+    LDA i, ch
+    ADD msg, ch
+    LDA ch, ch
+    LDA ch, OUT
+    ADD 1, i
+    JIL i, 5, loop
+    HLT
+
+-------------------------------------------------------------------------------
+SECTION 5: CONTROL FLOW EXAMPLES
+-------------------------------------------------------------------------------
+
+Unconditional loop:
+start:
+    ADD 1, x
+    JMP start
+
+Conditional if/else:
+    JIE else, x, 0
+    ; then block
+    JMP endif
+else:
+    ; else block
+endif:
+
+While loop:
+loop:
+    JIL x, 10, end
+    ADD 1, x
+    JMP loop
+end:
+    HLT
+
+-------------------------------------------------------------------------------
+SECTION 6: FUNCTION CALLS (CALL / RET)
+-------------------------------------------------------------------------------
+
+CALL simulates a function call:
+- Push current PC to stack
+- Jump to label
+
+RET:
+- Pop return address
+- Jump to that address
+
+The stack is manually managed in memory using a pointer (60000).
+
+A typical function:
+myfunc:
+    ; do something
+    RET
+
+main:
+    CALL myfunc
+    HLT
+
+-------------------------------------------------------------------------------
+SECTION 7: COMPILATION DETAILS
+-------------------------------------------------------------------------------
+
+When compiled:
+
+- Constants are stored in 0-255
+- Strings and variables are stored after code
+- Labels are replaced by their resolved memory addresses
+- The compiler encodes each instruction to MicroASM's binary format
+
+Instruction byte sizes:
+- HLT: 1 byte
+- JMP: 3 bytes
+- LDA/ADD/etc: 5 bytes
+- JIE/JIL/JIG: 7 bytes
+- CALL: ~23 bytes
+- RET: ~13 bytes
+
+-------------------------------------------------------------------------------
+SECTION 8: BEST PRACTICES
+-------------------------------------------------------------------------------
+
+- Always use .const for numbers you use more than once
+- Prefer labels over raw jump addresses
+- Keep variable and string names distinct
+- Use memory regions safely: avoid writing into constants or I/O areas
+- Use CALL/RET only with care: the stack must not overflow
+
+-------------------------------------------------------------------------------
+SECTION 9: EXAMPLE PROGRAM
+-------------------------------------------------------------------------------
+
+Prints numbers 0 to 4 as characters:
+
+.const OUT 384
+.const ONE 1
+.const FIVE 5
+.var x
+.var temp
+
+LDA 0, x
+loop:
+    LDA x, temp
+    ADD 48, temp
+    LDA temp, OUT
+    ADD ONE, x
+    JIL x, FIVE, loop
+    HLT
+
+-------------------------------------------------------------------------------
+SECTION 10: DEBUGGING TIPS
+-------------------------------------------------------------------------------
+
+- Use labels to avoid counting byte offsets manually
+- Use print loops to dump memory state if needed
+- Track your stack and PC if CALL/RET misbehave
+- Ensure memory regions do not overlap
+
+-------------------------------------------------------------------------------
+SECTION 11: FUTURE FEATURES (OPTIONAL)
+-------------------------------------------------------------------------------
+
+You may extend HLASM with:
+- 16-bit .word variables
+- Macros for string printing, 16-bit math
+- Structs or arrays
+- Condition macros: .if, .while (syntactic sugar)
+
+-------------------------------------------------------------------------------
+END OF DOCUMENT
+-------------------------------------------------------------------------------
+

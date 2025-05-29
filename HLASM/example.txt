@@ -1,0 +1,14 @@
+.const OUT 384
+.const ONE 1
+.const FIVE 5
+.var x
+.var temp
+
+LDA 0, x
+loop:
+    LDA x, temp
+    ADD 48, temp
+    LDA temp, OUT
+    ADD ONE, x
+    JIL x, FIVE, loop
+    HLT
