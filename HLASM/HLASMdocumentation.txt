@@ -31,9 +31,8 @@ into sections for structured use:
 
 - Section 0 (addresses 0-255): Constants
 - Section 1 (256-383): Input buffer (128 bytes)
-- Section 1 (384-511): Output buffer (128 bytes)
-- Section 2 (512-639): Reserved for I/O expansion
-- Section 3+ (640-...): Program code, variables, strings, heap, stack, etc.
+- Section 2 (384-511): Output buffer (128 bytes)
+- Section 3 (512-65536): Program code, variables, strings, heap, stack, etc.
 
 The program counter is stored in a fixed system location, typically address
 65000-65001 (high and low byte). This allows the interpreter/emulator to track
