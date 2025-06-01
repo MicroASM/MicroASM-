@@ -7,8 +7,9 @@ def convert(hlasm_code):
     program = []
     bytecode = []
     pc = 0
-    data_start = 512
+    data_start = 512  # Default code start
 
+    # First pass: collect consts, labels, and instructions
     for line in lines:
         line = line.strip().split(';')[0]
         if not line:
@@ -21,11 +22,13 @@ def convert(hlasm_code):
             strings[name] = [ord(c) for c in value.strip('"')]
         elif line.startswith(".var"):
             _, name = line.split()
-            variables[name] = None
+            variables[name] = None  # assigned later
         elif line.endswith(":"):
-            labels[line[:-1]] = pc
+            label = line[:-1]
+            labels[label] = pc
         else:
-            inst = line.split()[0]
+            tokens = line.split()
+            inst = tokens[0]
             pc += (
                 5 if inst in ["LDA", "ADD", "SUB", "MUL", "DIV"] else
                 3 if inst in ["JMP", "RET"] else
@@ -35,7 +38,11 @@ def convert(hlasm_code):
             )
             program.append(line)
 
-    current_addr = pc + data_start
+    # Determine data base
+    data_base = pc + data_start
+
+    # Assign addresses to variables and strings
+    current_addr = data_base
     for name in variables:
         variables[name] = current_addr
         current_addr += 1
@@ -53,6 +60,7 @@ def convert(hlasm_code):
         else:
             return int(value)
 
+    # Second pass: generate bytecode
     for line in program:
         tokens = line.split()
         inst = tokens[0]
@@ -95,9 +103,10 @@ def convert(hlasm_code):
                 3, 0, 1, tmp // 256, tmp % 256,
                 1, tmp // 256, tmp % 256, sp_addr // 256, sp_addr % 256,
                 1, tmp // 256, tmp % 256, (tmp+1) // 256, (tmp+1) % 256,
-                6, 0, 0
+                6, 0, 0  # NOTE: simulated RET, placeholder JMP
             ])
-    return bytecode
-f_name = input('What file do you want to compile? ')
-with open(f_name).read() as f:
-    print(str(convert(f)))
+    finc = ''
+    for i in bytecode:
+        finc += str(i)+' '
+    return finc[:len(finc)-1], bytecode
+print(convert(open(input('HLASM file: ')).read()))
